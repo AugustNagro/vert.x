@@ -188,12 +188,12 @@ class FutureImpl<T> extends FutureBase<T> {
       }
     }
     if (v instanceof CauseHolder) {
-      listener.emitFailure(context, ((CauseHolder)v).cause);
+      emitFailure(((CauseHolder)v).cause, listener);
     } else {
       if (v == NULL_VALUE) {
         v = null;
       }
-      listener.emitSuccess(context, (T) v);
+      emitSuccess((T) v, listener);
     }
   }
 
@@ -208,7 +208,7 @@ class FutureImpl<T> extends FutureBase<T> {
       listener = null;
     }
     if (l != null) {
-      l.emitSuccess(context, result);
+      emitSuccess(result, l);
     }
     return true;
   }
@@ -227,7 +227,7 @@ class FutureImpl<T> extends FutureBase<T> {
       listener = null;
     }
     if (l != null) {
-      l.emitFailure(context, cause);
+      emitFailure(cause, l);
     }
     return true;
   }

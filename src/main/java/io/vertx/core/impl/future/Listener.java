@@ -10,54 +10,12 @@
  */
 package io.vertx.core.impl.future;
 
-import io.vertx.core.impl.ContextInternal;
-
 /**
  * Internal listener that signals success or failure when a future completes.
  *
  * @author <a href="mailto:julien@julienviet.com">Julien Viet</a>
  */
 public interface Listener<T> {
-
-  /**
-   * Signal the success.
-   *
-   * @param value the value
-   */
-  default void emitSuccess(ContextInternal context, T value) {
-    if (context != null && !context.isRunningOnContext()) {
-      context.execute(() -> {
-        ContextInternal prev = context.beginDispatch();
-        try {
-          onSuccess(value);
-        } finally {
-          context.endDispatch(prev);
-        }
-      });
-    } else {
-      onSuccess(value);
-    }
-  }
-
-  /**
-   * Signal the failure
-   *
-   * @param failure the failure
-   */
-  default void emitFailure(ContextInternal context, Throwable failure) {
-    if (context != null && !context.isRunningOnContext()) {
-      context.execute(() -> {
-        ContextInternal prev = context.beginDispatch();
-        try {
-          onFailure(failure);
-        } finally {
-          context.endDispatch(prev);
-        }
-      });
-    } else {
-      onFailure(failure);
-    }
-  }
 
   /**
    * Signal the success.

@@ -46,6 +46,36 @@ abstract class FutureBase<T> implements FutureInternal<T> {
     return context;
   }
 
+  protected final void emitSuccess(T value, Listener<T> listener) {
+    if (context != null && !context.isRunningOnContext()) {
+      context.execute(() -> {
+        ContextInternal prev = context.beginDispatch();
+        try {
+          listener.onSuccess(value);
+        } finally {
+          context.endDispatch(prev);
+        }
+      });
+    } else {
+      listener.onSuccess(value);
+    }
+  }
+
+  protected final void emitFailure(Throwable cause, Listener<T> listener) {
+    if (context != null && !context.isRunningOnContext()) {
+      context.execute(() -> {
+        ContextInternal prev = context.beginDispatch();
+        try {
+          listener.onFailure(cause);
+        } finally {
+          context.endDispatch(prev);
+        }
+      });
+    } else {
+      listener.onFailure(cause);
+    }
+  }
+
   @Override
   public <U> Future<U> compose(Function<T, Future<U>> successMapper, Function<Throwable, Future<U>> failureMapper) {
     Objects.requireNonNull(successMapper, "No null success mapper accepted");

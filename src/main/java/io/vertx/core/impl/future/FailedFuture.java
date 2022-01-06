@@ -69,7 +69,7 @@ public final class FailedFuture<T> extends FutureBase<T> {
   @Override
   public Future<T> onComplete(Handler<AsyncResult<T>> handler) {
     if (handler instanceof Listener) {
-      ((Listener<T>) handler).emitFailure(context, cause);
+      emitFailure(cause, (Listener<T>) handler);
     } else if (context != null) {
       context.emit(this, handler);
     } else {
@@ -95,7 +95,7 @@ public final class FailedFuture<T> extends FutureBase<T> {
 
   @Override
   public void addListener(Listener<T> listener) {
-    listener.emitFailure(context, cause);
+    emitFailure(cause, listener);
   }
 
   @Override
