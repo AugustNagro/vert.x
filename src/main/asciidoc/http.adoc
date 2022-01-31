@@ -729,6 +729,14 @@ the more the level increases.
 By default - if compression is enabled via {@link io.vertx.core.http.HttpServerOptions#setCompressionSupported} - Vert.x will use '6' as compression level,
 but the parameter can be configured to address any case with {@link io.vertx.core.http.HttpServerOptions#setCompressionLevel}.
 
+=== HTTP compression algorithms
+
+Vert.x supports out of the box deflate and gzip provided out of the box by the JDK
+
+Vert.x supports extra algorithms
+
+
+
 === Creating an HTTP client
 
 You create an {@link io.vertx.core.http.HttpClient} instance with default options as follows:

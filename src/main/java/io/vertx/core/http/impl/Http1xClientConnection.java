@@ -15,6 +15,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.DecoderResult;
+import io.netty.handler.codec.compression.Brotli;
 import io.netty.handler.codec.compression.ZlibCodecFactory;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -181,7 +182,13 @@ public class Http1xClientConnection extends Http1xConnectionBase<WebSocketImpl> 
     }
     if (options.isTryUseCompression() && request.headers().get(ACCEPT_ENCODING) == null) {
       // if compression should be used but nothing is specified by the user support deflate and gzip.
-      request.headers().set(ACCEPT_ENCODING, DEFLATE_GZIP);
+      CharSequence acceptEncoding = DEFLATE_GZIP;
+      if (Brotli.isAvailable()) {
+        acceptEncoding = DEFLATE_GZIP_BR;
+      } else {
+        acceptEncoding = DEFLATE_GZIP;
+      }
+      request.headers().set(ACCEPT_ENCODING, acceptEncoding);
     }
     if (!options.isKeepAlive() && options.getProtocolVersion() == io.vertx.core.http.HttpVersion.HTTP_1_1) {
       request.headers().set(CONNECTION, CLOSE);

@@ -11,6 +11,7 @@
 
 package io.vertx.core.http;
 
+import io.netty.handler.codec.compression.CompressionOptions;
 import io.vertx.codegen.annotations.DataObject;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
@@ -148,6 +149,7 @@ public class HttpServerOptions extends NetServerOptions {
 
   private boolean compressionSupported;
   private int compressionLevel;
+  private List<CompressionOptions> compressors;
   private int maxWebSocketFrameSize;
   private int maxWebSocketMessageSize;
   private List<String> webSocketSubProtocols;
@@ -188,6 +190,7 @@ public class HttpServerOptions extends NetServerOptions {
     super(other);
     this.compressionSupported = other.isCompressionSupported();
     this.compressionLevel = other.getCompressionLevel();
+    this.compressors = other.compressors != null ? new ArrayList<>(other.compressors) : null;
     this.maxWebSocketFrameSize = other.maxWebSocketFrameSize;
     this.maxWebSocketMessageSize = other.maxWebSocketMessageSize;
     this.webSocketSubProtocols = other.webSocketSubProtocols != null ? new ArrayList<>(other.webSocketSubProtocols) : null;
@@ -539,6 +542,23 @@ public class HttpServerOptions extends NetServerOptions {
    */
   public HttpServerOptions setCompressionLevel(int compressionLevel) {
     this.compressionLevel = compressionLevel;
+    return this;
+  }
+
+  public List<CompressionOptions> getCompressors() {
+    return compressors;
+  }
+
+  public HttpServerOptions addCompressor(CompressionOptions compressor) {
+    if (compressors == null) {
+      compressors = new ArrayList<>();
+    }
+    compressors.add(compressor);
+    return this;
+  }
+
+  public HttpServerOptions setCompressors(List<CompressionOptions> compressors) {
+    this.compressors = compressors;
     return this;
   }
 

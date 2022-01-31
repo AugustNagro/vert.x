@@ -12,6 +12,8 @@ package io.vertx.core.http.impl;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
+import io.netty.handler.codec.compression.CompressionOptions;
+import io.netty.handler.codec.compression.StandardCompressionOptions;
 import io.netty.handler.codec.haproxy.HAProxyMessageDecoder;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.logging.LoggingHandler;
@@ -36,6 +38,8 @@ import io.vertx.core.net.impl.HAProxyMessageCompletionHandler;
 import io.vertx.core.spi.metrics.HttpServerMetrics;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -261,7 +265,15 @@ public class HttpServerWorker implements Handler<Channel> {
       pipeline.addLast("inflater", new HttpContentDecompressor(false));
     }
     if (options.isCompressionSupported()) {
-      pipeline.addLast("deflater", new HttpChunkContentCompressor(options.getCompressionLevel()));
+      List<CompressionOptions> compressors = options.getCompressors();
+      CompressionOptions[] compressionOptions;
+      if (compressors == null) {
+        int compressionLevel = options.getCompressionLevel();
+        compressionOptions = new CompressionOptions[] { StandardCompressionOptions.gzip(compressionLevel, 15, 8), StandardCompressionOptions.deflate(compressionLevel, 15, 8) };
+      } else {
+        compressionOptions = compressors.toArray(new CompressionOptions[0]);
+      }
+      pipeline.addLast("deflater", new HttpChunkContentCompressor(compressionOptions));
     }
     if (sslHelper.isSSL() || options.isCompressionSupported()) {
       // only add ChunkedWriteHandler when SSL is enabled otherwise it is not needed as FileRegion is used.
