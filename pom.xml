@@ -305,6 +305,13 @@
 
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>18</release>
+          <compilerArgs>
+            <arg>--enable-preview</arg>
+            <arg>--add-opens=java.base/java.lang=ALL-UNNAMED</arg>
+          </compilerArgs>
+        </configuration>
         <executions>
           <execution>
             <id>jdk11</id>
@@ -333,6 +340,15 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.0.0</version>
+        <configuration>
+          <mainClass>examples.AwaitBug</mainClass>
+        </configuration>
       </plugin>
 
       <plugin>
