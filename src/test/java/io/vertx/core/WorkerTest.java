@@ -24,12 +24,8 @@ public class WorkerTest extends VertxTestBase {
     AtomicInteger seq = new AtomicInteger();
     worker.runOnContext(v1 -> {
       assertEquals(0, seq.getAndIncrement());
-      try {
-        String res = worker.await(promise);
-        assertEquals("data", res);
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
+      String res = worker.await(promise);
+      assertEquals("data", res);
       assertEquals(2, seq.getAndIncrement());
       testComplete();
     });
@@ -43,30 +39,25 @@ public class WorkerTest extends VertxTestBase {
   @Test
   public void testHttpClient() throws Exception {
     VertxInternal vertx = (VertxInternal) this.vertx;
-    vertx
-      .createHttpServer()
-      .requestHandler(req -> {
+    WorkerContext workerCtx = vertx.createWorkerContext();
+    workerCtx.runOnContext(v -> {
+
+      workerCtx.await(vertx.createHttpServer().requestHandler(req -> {
         req.response().setChunked(true).write("Hello");
         vertx.setTimer(100, id -> {
           req.response().end(" World");
         });
-      })
-      .listen(8080, "localhost")
-      .toCompletionStage()
-      .toCompletableFuture()
-      .get(10, TimeUnit.SECONDS);
-    HttpClient client = vertx.createHttpClient();
-    WorkerContext workerCtx = vertx.createWorkerContext();
-    workerCtx.runOnContext(v -> {
-      Future<HttpClientRequest> fut = client.request(HttpMethod.GET, 8080, "localhost", "/");
-      try {
+      }).listen(8085, "localhost"));
+
+      HttpClient client = vertx.createHttpClient();
+      for (int i = 0; i < 100; ++i) {
+        Future<HttpClientRequest> fut = client.request(HttpMethod.GET, 8085, "localhost", "/");
         HttpClientRequest req = workerCtx.await(fut);
         HttpClientResponse resp = workerCtx.await(req.send());
         Buffer body = workerCtx.await(resp.body());
         assertEquals("Hello World", body.toString());
-      } catch (InterruptedException e) {
-        e.printStackTrace();
       }
+
       testComplete();
     });
     await();

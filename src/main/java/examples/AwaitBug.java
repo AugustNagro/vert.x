@@ -1,6 +1,7 @@
 package examples;
 
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.*;
@@ -34,12 +35,9 @@ public class AwaitBug {
       for (int i = 0; i < 100; ++i) {
         System.out.println("Attempt #" + i);
         HttpClientRequest req = vertxLoom.await(client.request(HttpMethod.GET, 8088, "localhost", "/"));
-        System.out.println("a");
         HttpClientResponse resp = vertxLoom.await(req.send());
-        System.out.println("b");
         Buffer body = vertxLoom.await(resp.body());
         String bodyString = body.toString(StandardCharsets.UTF_8);
-        System.out.println(bodyString);
         if (!FUT_VALUE.equals(bodyString)) throw new RuntimeException("Failed");
       }
       System.out.println("It worked!");

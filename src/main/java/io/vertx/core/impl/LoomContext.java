@@ -8,23 +8,32 @@ import io.vertx.core.VertxException;
 import io.vertx.core.impl.future.FutureInternal;
 
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.*;
+import java.util.function.Consumer;
 
 /**
  * A fork a WorkerContext with a couple of changes.
  */
 public class LoomContext extends ContextImpl {
 
-  public static LoomContext create(Vertx vertx, EventLoop nettyEventLoop, ThreadFactory threadFactory) {
+  public static LoomContext create(
+    Vertx vertx,
+    EventLoop nettyEventLoop,
+    ThreadFactory threadFactory
+  ) {
     VertxImpl _vertx = (VertxImpl) vertx;
     LoomContext[] ref = new LoomContext[1];
     ExecutorService exec = Executors.newCachedThreadPool(threadFactory);
-    LoomContext context = new LoomContext(_vertx, nettyEventLoop, _vertx.internalWorkerPool, new WorkerPool(exec, null), null, _vertx.closeFuture(), null, threadFactory);
+    LoomContext context = new LoomContext(
+      _vertx,
+      nettyEventLoop,
+      _vertx.internalWorkerPool,
+      new WorkerPool(exec, null),
+      null,
+      _vertx.closeFuture(),
+      null,
+      threadFactory
+    );
     ref[0] = context;
     return context;
   }
@@ -32,14 +41,16 @@ public class LoomContext extends ContextImpl {
 
   private final ThreadFactory threadFactory;
 
-  LoomContext(VertxInternal vertx,
+  LoomContext(
+    VertxInternal vertx,
     EventLoop eventLoop,
     WorkerPool internalBlockingPool,
     WorkerPool workerPool,
     Deployment deployment,
     CloseFuture closeFuture,
     ClassLoader tccl,
-    ThreadFactory threadFactory) {
+    ThreadFactory threadFactory
+  ) {
     super(vertx, eventLoop, internalBlockingPool, workerPool, deployment, closeFuture, tccl);
 
     this.threadFactory = threadFactory;
@@ -48,7 +59,7 @@ public class LoomContext extends ContextImpl {
   @Override
   protected void runOnContext(AbstractContext ctx, Handler<Void> action) {
     try {
-      run(ctx, null, action);
+      run(ctx, orderedTasks, null, action);
     } catch (RejectedExecutionException ignore) {
       // Pool is already shut down
     }
@@ -56,18 +67,19 @@ public class LoomContext extends ContextImpl {
 
   /**
    * <ul>
-   *   <li>When the current thread is a worker thread of this context the implementation will execute the {@code task} directly</li>
+   *   <li>When the current thread is a worker thread of this context the implementation will
+   *   execute the {@code task} directly</li>
    *   <li>Otherwise the task will be scheduled on the worker thread for execution</li>
    * </ul>
    */
   @Override
   <T> void execute(AbstractContext ctx, T argument, Handler<T> task) {
-    execute2(argument, task);
+    execute2(orderedTasks, argument, task);
   }
 
   @Override
   <T> void emit(AbstractContext ctx, T argument, Handler<T> task) {
-    execute2(argument, arg -> {
+    execute2(orderedTasks, argument, arg -> {
       ctx.dispatch(arg, task);
     });
   }
@@ -82,20 +94,18 @@ public class LoomContext extends ContextImpl {
     return false;
   }
 
-  private <T> void run(ContextInternal ctx, T value, Handler<T> task) {
+  private <T> void run(ContextInternal ctx, TaskQueue queue, T value, Handler<T> task) {
     Objects.requireNonNull(task, "Task handler must not be null");
-    workerPool.executor().execute(() -> {
+    queue.execute(() -> {
       ctx.dispatch(value, task);
-    });
+    }, workerPool.executor());
   }
 
-  private <T> void execute2(T argument, Handler<T> task) {
+  private <T> void execute2(TaskQueue queue, T argument, Handler<T> task) {
     if (Context.isOnWorkerThread()) {
       task.handle(argument);
     } else {
-      workerPool.executor().execute(() -> {
-        task.handle(argument);
-      });
+      queue.execute(() -> task.handle(argument), workerPool.executor());
     }
   }
 
@@ -106,32 +116,22 @@ public class LoomContext extends ContextImpl {
   }
 
   public <T> T await(FutureInternal<T> future) {
-    CompletableFuture<T> fut = new CompletableFuture<>();
+    CompletableFuture<T> cf = new CompletableFuture<>();
+    Consumer<Runnable> back = orderedTasks.unschedule();
     future.onComplete(ar -> {
-      System.out.println("future completed..");
-      if (ar.succeeded()) {
-        fut.complete(ar.result());
-      } else {
-        fut.completeExceptionally(ar.cause());
-      }
+      back.accept(() -> {
+        if (ar.succeeded()) {
+          cf.complete(ar.result());
+        } else {
+          cf.completeExceptionally(ar.cause());
+        }
+      });
     });
-
     try {
-      return fut.get();
-    } catch (InterruptedException e) {
+      return cf.get(10, TimeUnit.MINUTES);
+    } catch (ExecutionException | TimeoutException | InterruptedException e) {
       throw new VertxException(e);
-    } catch (ExecutionException e) {
-      throwAsUnchecked(e.getCause());
-      // Should not reach this
-      throw new UnsupportedOperationException();
     }
   }
-
-
-  @SuppressWarnings("unchecked")
-  private static <E extends Throwable> void throwAsUnchecked(Throwable t) throws E {
-    throw (E) t;
-  }
-
 
 }

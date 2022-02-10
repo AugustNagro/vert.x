@@ -122,7 +122,7 @@ public class WorkerContext extends ContextImpl {
     return Context.isOnWorkerThread();
   }
 
-  public <T> T await(Future<T> future) throws InterruptedException {
+  public <T> T await(Future<T> future) {
     CompletableFuture<T> cf = new CompletableFuture<>();
     Consumer<Runnable> back = orderedTasks.unschedule();
     future.onComplete(ar -> {
@@ -136,7 +136,7 @@ public class WorkerContext extends ContextImpl {
     });
     try {
       return cf.get(10, TimeUnit.MINUTES);
-    } catch (ExecutionException | TimeoutException e) {
+    } catch (ExecutionException | TimeoutException | InterruptedException e) {
       throw new VertxException(e);
     }
   }
