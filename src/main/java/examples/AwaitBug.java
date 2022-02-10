@@ -14,6 +14,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class AwaitBug {
 
@@ -24,7 +25,36 @@ public class AwaitBug {
   }
 
   public static void main(String[] args) throws Exception {
-    new AwaitBug().contextSwitchIssue();
+    new AwaitBug().arnavarrBug();
+  }
+
+  public void arnavarrBug() {
+    Vertx vertx = Vertx.vertx()
+      .exceptionHandler(Throwable::printStackTrace);
+    VertxLoom vertxLoom = new VertxLoom(vertx);
+
+    vertxLoom.virtual(() -> {
+      ReentrantLock rl = new ReentrantLock();
+
+      rl.lock();
+
+      Vertx.currentContext().runOnContext(v -> {
+        System.out.println("try to lock");
+        rl.lock();
+        System.out.println("I locked it");
+      });
+
+      try {
+        System.out.println("before sleep");
+        Thread.sleep(100);
+        System.out.println("after sleep");
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+
+      rl.unlock();
+    });
+
   }
 
   public void contextSwitchIssue() {
