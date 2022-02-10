@@ -5,9 +5,15 @@ import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.*;
+import io.vertx.core.impl.ContextInternal;
+import io.vertx.core.impl.LoomContext;
 import io.vertx.loom.core.VertxLoom;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 
 public class AwaitBug {
 
@@ -18,6 +24,34 @@ public class AwaitBug {
   }
 
   public static void main(String[] args) throws Exception {
+    new AwaitBug().contextSwitchIssue();
+  }
+
+  public void contextSwitchIssue() {
+    Vertx vertx = Vertx.vertx()
+      .exceptionHandler(Throwable::printStackTrace);
+    VertxLoom vertxLoom = new VertxLoom(vertx);
+
+    vertxLoom.virtual(() -> {
+
+      CountDownLatch latch = new CountDownLatch(1);
+
+      Vertx.currentContext().runOnContext(v -> {
+        latch.countDown();
+      });
+
+      try {
+        boolean finished = latch.await(3, TimeUnit.SECONDS);
+        if (!finished) throw new RuntimeException("didn't finish");
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+
+    });
+
+  }
+
+  public void clientAndServerTest() {
     Vertx vertx = Vertx.vertx()
       .exceptionHandler(Throwable::printStackTrace);
     VertxLoom vertxLoom = new VertxLoom(vertx);
