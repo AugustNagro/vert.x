@@ -16,6 +16,7 @@ import io.vertx.core.impl.logging.LoggerFactory;
 
 import java.util.LinkedList;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 /**
  * A task queue that always run all tasks in order. The executor to run the tasks is passed
@@ -37,8 +38,15 @@ public class TaskQueue {
 
     private final Runnable runnable;
     private final Executor exec;
+    private boolean completed;
 
     public Task(Runnable runnable, Executor exec) {
+      if (runnable == null) {
+        throw new NullPointerException();
+      }
+      if (exec == null) {
+        throw new NullPointerException();
+      }
       this.runnable = runnable;
       this.exec = exec;
     }
@@ -48,7 +56,7 @@ public class TaskQueue {
   private final LinkedList<Task> tasks = new LinkedList<>();
 
   // @protectedby tasks
-  private Executor current;
+  private Task current;
 
   private final Runnable runner;
 
@@ -60,38 +68,89 @@ public class TaskQueue {
     for (; ; ) {
       final Task task;
       synchronized (tasks) {
-        task = tasks.poll();
-        if (task == null) {
-          current = null;
-          return;
-        }
-        if (task.exec != current) {
-          tasks.addFirst(task);
-          task.exec.execute(runner);
-          current = task.exec;
-          return;
-        }
+        task = current;
       }
       try {
-        task.runnable.run();
+        // System.out.println(task.runnable);
+        Runnable runnable = task.runnable;
+        runnable.run();
       } catch (Throwable t) {
         log.error("Caught unexpected Throwable", t);
       }
+      synchronized (tasks) {
+        task.completed = true;
+        if (current != task) {
+          break;
+        }
+        Task next = tasks.poll();
+        if (next == null) {
+          current = null;
+          break;
+        }
+        current = next;
+        if (task.exec != next.exec) {
+          task.exec.execute(runner);
+          break;
+        }
+      }
     }
-  };
+  }
 
   /**
    * Run a task.
    *
-   * @param task the task to run.
+   * @param runnable the task to run.
    */
-  public void execute(Runnable task, Executor executor) {
+  public void execute(Runnable runnable, Executor executor) {
+    Task task = new Task(runnable, executor);
     synchronized (tasks) {
-      tasks.add(new Task(task, executor));
       if (current == null) {
-        current = executor;
+        current = task;
         executor.execute(runner);
+      } else {
+        tasks.add(task);
       }
     }
   }
+
+  Consumer<Runnable> unschedule() {
+    Task task;
+    synchronized (tasks) {
+      task = current;
+      if (task == null) {
+        throw new IllegalStateException();
+      }
+      current = tasks.poll();
+      if (current != null) {
+        current.exec.execute(runner);
+      }
+    }
+    return t -> {
+      synchronized (tasks) {
+        if (!task.completed) {
+          if (current == null) {
+            current = task;
+            t.run();
+          } else {
+            tasks.addFirst(new Task(new Runnable() {
+              @Override
+              public void run() {
+                synchronized (tasks) {
+                  current = task;
+                }
+                t.run();
+              }
+              @Override
+              public String toString() {
+                return t.toString();
+              }
+            }, current.exec));
+          }
+        } else {
+          tasks.addFirst(new Task(t, current.exec));
+        }
+      }
+    };
+  }
+
 }

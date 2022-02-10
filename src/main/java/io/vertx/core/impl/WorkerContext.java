@@ -12,11 +12,18 @@
 package io.vertx.core.impl;
 
 import io.vertx.core.Context;
+import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.VertxException;
 import io.vertx.core.spi.metrics.PoolMetrics;
 
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 /**
  * @author <a href="http://tfox.org">Tim Fox</a>
@@ -113,5 +120,24 @@ public class WorkerContext extends ContextImpl {
   @Override
   public boolean inThread() {
     return Context.isOnWorkerThread();
+  }
+
+  public <T> T await(Future<T> future) throws InterruptedException {
+    CompletableFuture<T> cf = new CompletableFuture<>();
+    Consumer<Runnable> back = orderedTasks.unschedule();
+    future.onComplete(ar -> {
+      back.accept(() -> {
+        if (ar.succeeded()) {
+          cf.complete(ar.result());
+        } else {
+          cf.completeExceptionally(ar.cause());
+        }
+      });
+    });
+    try {
+      return cf.get(10, TimeUnit.MINUTES);
+    } catch (ExecutionException | TimeoutException e) {
+      throw new VertxException(e);
+    }
   }
 }
